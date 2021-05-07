@@ -89,7 +89,8 @@
                         form=JSON.parse(form);
                     }catch{}
                 }
-                this.form=form;
+                if(form)
+                    this.form=form;
             },
             data:{
                 form:{
