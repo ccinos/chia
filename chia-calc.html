@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>chia收益计算器</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue"></script>
+    <!-- 引入样式 -->
+    <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+    <!-- 引入组件库 -->
+    <script src="https://unpkg.com/element-ui/lib/index.js"></script>
+    <style>
+        .el-input-group__append{
+            width:80px;
+        }
+    </style>
+</head>
+<body>
+    <div id="vueapp">
+        <el-row :gutter="10">
+                <el-form ref="form" :model="form" label-width="150px">
+                    <el-col :xs="24" :sm="18" :md="12" v-for="val,key in form">
+                        <el-form-item :label="key" >
+                            <el-input v-model="form[key]" min="0" max="10000" :title="formInfo[key].title">
+                                <template slot="append">{{formInfo[key].unit}}</template>
+                            </el-input>
+                        </el-form-item>
+                    </el-col>
+                    <el-col span="24" >
+                        <el-form-item>
+                            <el-button type="primary" @click="calc">计算</el-button>
+                        </el-form-item>
+                    </el-col>
+                </el-form>
+          </el-row>
+          <el-row>
+            <el-table :data="信息列表" style="width: 80%;margin-left:150px;">
+                <el-table-column
+                    prop="name"
+                    label=""
+                    width="180">
+                </el-table-column>
+                <el-table-column
+                    prop="val"
+                    label="">
+                </el-table-column>
+            </el-table>
+        </el-row>
+        <el-row v-if="结果列表.length>0">
+            <el-table :data="结果列表" style="width: 80%;margin-left:150px;">
+                <el-table-column
+                    prop="name"
+                    label=""
+                    width="180">
+                </el-table-column>
+                <el-table-column v-for="key in 结果列表展示"
+                    :prop="'data.'+key"
+                    :label="key">
+                </el-table-column>
+            </el-table>
+        </el-row>
+    </div>
+    <script>
+        var formatDate=function(date,fmt) {
+            fmt=fmt||"yyyy-MM-dd";
+            var o = {
+                    "M+": date.getMonth() + 1, //月份
+                    "d+": date.getDate(), //日
+                    "h+": date.getHours(), //小时
+                    "m+": date.getMinutes(), //分
+            };
+            if (/(y+)/.test(fmt))
+                fmt = fmt.replace(RegExp.$1, (date.getFullYear() + "").substr(4 - RegExp.$1.length));
+            for (var k in o)
+            if (new RegExp("(" + k + ")").test(fmt)) 
+                fmt = fmt.replace(RegExp.$1, (RegExp.$1.length == 1) 
+                    ? (o[k]) : (("00" + o[k]).substr(("" + o[k]).length)));
+            return fmt;
+        }
+        function save(){
+            localStorage.setItem("CCINO_CHIA_CALC_FORM",JSON.stringify(vueapp.form));
+        }
+        var vueapp=new Vue({
+            el:"#vueapp",
+            created:function(){
+                var form=localStorage.getItem("CCINO_CHIA_CALC_FORM")
+                if(form){
+                    try{
+                        form=JSON.parse(form);
+                    }catch{}
+                }
+                this.form=form;
+            },
+            data:{
+                form:{
+                    每PiB收益:2.5, //XCH
+                    当前全网算力:3000, //PiB
+                    每日增加全网算力:300, //PiB
+                    你的当前算力:0, //TiB
+                    你的最高算力:10, //TiB
+                    你每天增加算力:2, //TiB
+                    你的投资额:3000, //RMB
+                    每天电费:2, //RMB
+                    币价:600,   //USD
+                    汇率:6.5,   //USD:RMB
+                    预估币价年化增值:10, //%
+                    全网算力增速衰减:0.999,
+                    其他硬盘币每PiB收益:50, //USD
+                },
+                formInfo:{
+                    每PiB收益:{unit:'XCH',title:"每PiB容量的XCH收益"},
+                    当前全网算力:{unit:'PiB',title:"当前全网算力"},
+                    每日增加全网算力:{unit:'PiB',title:"每日增加的全网算力"},
+                    你的当前算力:{unit:'TiB',title:"你自己的算力"},
+                    你的最高算力:{unit:'TiB',title:"你最高能达到的算力"},
+                    你每天增加算力:{unit:'TiB',title:""},
+                    你的投资额:{unit:'RMB',title:""},
+                    每天电费:{unit:'RMB',title:""},
+                    币价:{unit:'USD',title:""},
+                    汇率:{unit:'USD:RMB',title:""},
+                    其他硬盘币每PiB收益:{unit:'USD/PiB',title:"当每日的收益达到这个下限时，开始挖其他的币收益更高"},
+                    预估币价年化增值:{unit:"%每年",title:"预估币价每年增值百分比"},
+                    全网算力增速衰减:{unit:"每天",title:"每天增速衰减"},
+                },
+                结果列表:[],
+                信息列表:[],
+                结果列表展示:['日收入XCH','总收入XCH','日收入R','总收入R'],
+            },
+            methods:{
+                calc:function(){
+                    for(var key in this.form){
+                        var v=+this.form[key];
+                        this.form[key]=isNaN(v)?0:v;
+                    }
+                    var list=[],总收入=0,收回成本天数,收益下限天数;
+                    var 当前算力=this.form.你的当前算力/1024, 
+                        当日算力=this.form.当前全网算力, 原始算力=this.form.当前全网算力, 每PiB收益=this.form.每PiB收益, 每日收益下限=this.form.其他硬盘币每PiB收益/this.form.币价,
+                        原始币价=this.form.币价,币价=this.form.币价,汇率=this.form.汇率,你的投资额=this.form.你的投资额,每天电费=this.form.每天电费,
+                        每日增加算力=this.form.每日增加全网算力,你每天增加算力=this.form.你每天增加算力/1024,你的最高算力=this.form.你的最高算力/1024,
+                        每日增值=this.form.预估币价年化增值/365/100, 全网算力增速衰减=this.form.全网算力增速衰减;
+
+                    var 增值比例=1;
+                    for(var i=0;(i<366*3||收回成本天数==null)&&i<10000;++i){
+                        var 收益百分比=原始算力/当日算力;
+                        var 当日收入= 每PiB收益*当前算力 * 收益百分比;
+                        if(当日收入<每日收益下限*当前算力){
+                            当日收入=每日收益下限*当前算力;
+                            if(!收益下限天数) 收益下限天数=i;
+                        }
+
+                        总收入+= 当日收入 - 每天电费/币价/汇率;
+                        if(收回成本天数==null && 总收入*币价*汇率>你的投资额)
+                            收回成本天数=i;
+                        list.push({
+                            第n天:i+1,
+                            日收入XCH:Math.round(当日收入*1000000)/1000000,
+                            总收入XCH:Math.round(总收入*1000000)/1000000,
+                            每PiB日收入: Math.round(收益百分比*每PiB收益*100)/100,
+                            收益百分比:收益百分比,
+                            日收入U:当日收入*币价,
+                            总收入U:总收入*币价,
+                            日收入R:Math.round(当日收入*币价*汇率*100)/100,
+                            总收入R:Math.round(总收入*币价*汇率*100)/100,
+                        });
+                        当日算力+=每日增加算力;
+                        每日增加算力*=全网算力增速衰减;
+                        增值比例+=每日增值;
+                        币价=原始币价*增值比例;
+                        当前算力+=你每天增加算力;
+                        if(当前算力>=你的最高算力) {
+                            当前算力=你的最高算力;
+                        }
+                    }
+                    this.结果列表=[];
+                    this.结果列表.push({name:'1月',data:list[30]});
+                    this.结果列表.push({name:'3月',data:list[91]});
+                    this.结果列表.push({name:'6月',data:list[182]});
+                    this.结果列表.push({name:'1年',data:list[365]});
+                    this.结果列表.push({name:'2年',data:list[365*2]});
+                    this.结果列表.push({name:'3年',data:list[365*3]});
+
+                    this.信息列表=[];
+                    this.信息列表.push({name:'回收成本所用天数',val:收回成本天数+ " (" +formatDate(new Date(+new Date() + 收回成本天数*3600*24*1000))+")"});
+                    this.信息列表.push({name:'达到收益下限天数',val:收益下限天数 +" (" +formatDate(new Date(+new Date() + 收益下限天数*3600*24*1000))+" 之后应该挖其他硬盘币)"});
+                    this.信息列表.push({name:'收益下限每年收益',val:Math.round(每日收益下限*你的最高算力*币价*汇率*365)});
+                    this.信息列表.push({name:'收益下限年化利率',val:Math.round(每日收益下限*你的最高算力*币价*汇率*365/你的投资额*10000)/100+"%"});
+                    this.信息列表.push({name:'收益下限说明',val:'如果每天收益不如其他的硬盘币，那可以转过去挖另一个，另一个币的收益值就是收益下限。'});
+                    save();
+                }
+            }
+
+        });
+    </script>
+</body>
+</html>
