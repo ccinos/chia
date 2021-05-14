@@ -90,7 +90,7 @@
                     }catch{}
                 }
                 if(form)
-                    this.form=form;
+                    this.form=Object.assign(this.form,form);
             },
             data:{
                 form:{
@@ -107,6 +107,7 @@
                     预估币价年化增值:10, //%
                     全网算力增速衰减:0.999,
                     其他硬盘币每PiB收益:50, //USD
+                    已经获得的XCH:0,
                 },
                 formInfo:{
                     每PiB收益:{unit:'XCH',title:"每PiB容量的XCH收益"},
@@ -122,6 +123,7 @@
                     其他硬盘币每PiB收益:{unit:'USD/PiB',title:"当每日的收益达到这个下限时，开始挖其他的币收益更高"},
                     预估币价年化增值:{unit:"%每年",title:"预估币价每年增值百分比"},
                     全网算力增速衰减:{unit:"每天",title:"每天增速衰减"},
+                    已经获得的XCH:{unit:"XCH",title:""},
                 },
                 结果列表:[],
                 信息列表:[],
@@ -138,8 +140,10 @@
                         当日算力=this.form.当前全网算力, 原始算力=this.form.当前全网算力, 每PiB收益=this.form.每PiB收益, 每日收益下限=this.form.其他硬盘币每PiB收益/this.form.币价,
                         原始币价=this.form.币价,币价=this.form.币价,汇率=this.form.汇率,你的投资额=this.form.你的投资额,每天电费=this.form.每天电费,
                         每日增加算力=this.form.每日增加全网算力,你每天增加算力=this.form.你每天增加算力/1024,你的最高算力=this.form.你的最高算力/1024,
-                        每日增值=this.form.预估币价年化增值/365/100, 全网算力增速衰减=this.form.全网算力增速衰减;
-
+                        每日增值=this.form.预估币价年化增值/365/100, 全网算力增速衰减=this.form.全网算力增速衰减,
+                        已经获得的XCH=this.form.已经获得的XCH;
+                    
+                    总收入=已经获得的XCH;
                     var 增值比例=1;
                     for(var i=0;(i<366*5||收回成本天数==null)&&i<10000;++i){
                         var 收益百分比=原始算力/当日算力;
